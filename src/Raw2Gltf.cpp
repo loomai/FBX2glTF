@@ -827,7 +827,7 @@ ModelData *Raw2Gltf(
                     && surfaceModel.GetVertexCount() > 65535);
 
             std::shared_ptr<PrimitiveData> primitive;
-            if (options.draco.enabled) {
+            if (options.useDraco) {
                 int triangleCount = surfaceModel.GetTriangleCount();
 
                 // initialize Draco mesh with vertex index information
@@ -943,29 +943,17 @@ ModelData *Raw2Gltf(
                     primitive->AddTarget(pAcc.get(), nAcc.get(), tAcc.get(), channel.name);
                 }
             }
-            if (options.draco.enabled) {
+            if (options.useDraco) {
                 // Set up the encoder.
                 draco::Encoder encoder;
 
-                if (options.draco.compressionLevel != -1) {
-                    int dracoSpeed = 10 - options.draco.compressionLevel;
-                    encoder.SetSpeedOptions(dracoSpeed, dracoSpeed);
-                }
-                if (options.draco.quantBitsPosition != -1) {
-                    encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, options.draco.quantBitsPosition);
-                }
-                if (options.draco.quantBitsTexCoord != -1) {
-                    encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, options.draco.quantBitsTexCoord);
-                }
-                if (options.draco.quantBitsNormal != -1) {
-                    encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, options.draco.quantBitsNormal);
-                }
-                if (options.draco.quantBitsColor != -1) {
-                    encoder.SetAttributeQuantization(draco::GeometryAttribute::COLOR, options.draco.quantBitsColor);
-                }
-                if (options.draco.quantBitsGeneric != -1) {
-                    encoder.SetAttributeQuantization(draco::GeometryAttribute::GENERIC, options.draco.quantBitsGeneric);
-                }
+                // TODO: generalize / allow configuration
+                encoder.SetSpeedOptions(5, 5);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, 14);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, 10);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, 10);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::COLOR, 8);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::GENERIC, 8);
 
                 draco::EncoderBuffer dracoBuffer;
                 draco::Status        status = encoder.EncodeMeshToBuffer(*primitive->dracoMesh, &dracoBuffer);
@@ -1082,14 +1070,14 @@ ModelData *Raw2Gltf(
         if (options.useKHRMatUnlit) {
             extensionsUsed.push_back(KHR_MATERIALS_CMN_UNLIT);
         }
-        if (options.draco.enabled) {
+        if (options.useDraco) {
             extensionsUsed.push_back(KHR_DRACO_MESH_COMPRESSION);
             extensionsRequired.push_back(KHR_DRACO_MESH_COMPRESSION);
         }
 
         json glTFJson {
           { "asset", {
-              { "generator", "FBX2glTF v" + FBX2GLTF_VERSION },
+              { "generator", "FBX2glTF" },
               { "version", "2.0" }}},
           { "scene", rootScene.ix }
         };

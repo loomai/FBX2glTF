@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cassert>
-#include <cmath>
 
 #include "FBX2glTF.h"
 #include "utils/File_Utils.h"
@@ -402,14 +401,12 @@ public:
         for (int deformerIndex = 0; deformerIndex < pMesh->GetDeformerCount(); deformerIndex++) {
             FbxSkin *skin = reinterpret_cast< FbxSkin * >( pMesh->GetDeformer(deformerIndex, FbxDeformer::eSkin));
             if (skin != nullptr) {
-                const int clusterCount = skin->GetClusterCount();
-                if (clusterCount == 0) {
-                    continue;
-                }
                 int controlPointCount = pMesh->GetControlPointsCount();
+
                 vertexJointIndices.resize(controlPointCount, Vec4i(0, 0, 0, 0));
                 vertexJointWeights.resize(controlPointCount, Vec4f(0.0f, 0.0f, 0.0f, 0.0f));
 
+                const int clusterCount = skin->GetClusterCount();
                 for (int clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++) {
                     FbxCluster   *cluster        = skin->GetCluster(clusterIndex);
                     const int    indexCount      = cluster->GetControlPointIndicesCount();
@@ -1265,7 +1262,7 @@ static void ReadAnimations(RawModel &raw, FbxScene *pScene)
                         for (int targetIx = 0; targetIx < targetCount; targetIx++) {
                             if (curve) {
                                 float result = findInInterval(influence, targetIx-1);
-                                if (!std::isnan(result)) {
+                                if (!isnan(result)) {
                                     // we're transitioning into targetIx
                                     channel.weights.push_back(result);
                                     hasMorphs = true;
@@ -1273,7 +1270,7 @@ static void ReadAnimations(RawModel &raw, FbxScene *pScene)
                                 }
                                 if (targetIx != targetCount-1) {
                                     result = findInInterval(influence, targetIx);
-                                    if (!std::isnan(result)) {
+                                    if (!isnan(result)) {
                                         // we're transitioning AWAY from targetIx
                                         channel.weights.push_back(1.0f - result);
                                         hasMorphs = true;
