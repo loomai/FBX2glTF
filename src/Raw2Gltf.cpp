@@ -417,6 +417,10 @@ ModelData *Raw2Gltf(
             bool transparentOutput
         ) -> std::shared_ptr<TextureData>
         {
+            if (options.ignoreTextures) {
+                return nullptr;
+            }
+
             const std::string key = texIndicesKey(rawTexIndices, tag);
             auto iter = textureByIndicesKey.find(key);
             if (iter != textureByIndicesKey.end()) {
@@ -632,7 +636,7 @@ ModelData *Raw2Gltf(
 
             // acquire the texture of a specific RawTextureUsage as *TextData, or nullptr if none exists
             auto simpleTex = [&](RawTextureUsage usage) -> std::shared_ptr<TextureData> {
-                return (material.textures[usage] >= 0) ? getSimpleTexture(material.textures[usage], "simple") : nullptr;
+                return (material.textures[usage] >= 0 && !options.ignoreTextures) ? getSimpleTexture(material.textures[usage], "simple") : nullptr;
             };
 
             TextureData *normalTexture   = simpleTex(RAW_TEXTURE_USAGE_NORMAL).get();

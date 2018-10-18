@@ -56,6 +56,8 @@ struct GltfOptions
     bool useBlendShapeNormals { false };
     /** Whether to include blend shape tangents, if present according to the SDK. */
     bool useBlendShapeTangents { false };
+    /** Whether to write out textures or not. */
+    bool ignoreTextures { false };
     /** When to compute vertex normals from geometry. */
     ComputeNormalsOption computeNormals = ComputeNormalsOption::BROKEN;
     /** When to use 32-bit indices. */

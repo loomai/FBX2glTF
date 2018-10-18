@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cassert>
+#include <iostream>
 
 #include "FBX2glTF.h"
 #include "utils/File_Utils.h"
@@ -1115,6 +1116,9 @@ static void ReadNodeHierarchy(
     const FbxVector4    localTranslation = localTransform.GetT();
     const FbxQuaternion localRotation    = localTransform.GetQ();
     const FbxVector4    localScaling     = computeLocalScale(pNode);
+    // const FbxDouble3 localTranslation = pNode->LclTranslation.Get();
+    // const FbxDouble3 localRotation    = pNode->LclRotation.Get();
+    // const FbxDouble3 localScaling     = pNode->LclScaling.Get();
 
     node.translation = toVec3f(localTranslation) * scaleFactor;
     node.rotation    = toQuatf(localRotation);

@@ -52,6 +52,9 @@ int main(int argc, char *argv[])
                    "o,output", "Where to generate the output, without suffix.",
                    cxxopts::value<std::string>(outputPath))
                (
+                   "ignore-textures", "Ignore textures during writing.",
+                   cxxopts::value<bool>(gltfOptions.ignoreTextures))
+               (
                    "e,embed", "Inline buffers as data:// URIs within generated non-binary glTF.",
                    cxxopts::value<bool>(gltfOptions.embedResources))
                (
