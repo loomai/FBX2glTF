@@ -51,6 +51,18 @@ void PrimitiveData::AddTarget(const AccessorData *positions, const AccessorData 
     targetNames.push_back(shape_name);
 }
 
+void PrimitiveData::AddTarget(const SparseAccessorData *positions, const SparseAccessorData *normals, const SparseAccessorData *tangents,
+                              const std::string &shape_name)
+{
+    targetAccessors.push_back(std::make_tuple(
+        positions->ix,
+        normals ? normals->ix : -1,
+        tangents ? tangents ->ix : -1
+    ));
+
+    targetNames.push_back(shape_name);
+}
+
 void to_json(json &j, const PrimitiveData &d) {
     j = {
         { "material", d.material },

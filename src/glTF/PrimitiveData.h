@@ -11,6 +11,7 @@
 #define FBX2GLTF_PRIMITIVEDATA_H
 
 #include "Raw2Gltf.h"
+#include "AccessorData.h"
 
 struct PrimitiveData
 {
@@ -32,6 +33,8 @@ struct PrimitiveData
     void AddAttrib(std::string name, const AccessorData &accessor);
 
     void AddTarget(const AccessorData *positions, const AccessorData *normals, const AccessorData *tangents,
+                   const std::string &name);
+    void AddTarget(const SparseAccessorData *positions, const SparseAccessorData *normals, const SparseAccessorData *tangents,
                    const std::string &name);
 
     template<class T>

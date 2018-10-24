@@ -47,3 +47,60 @@ json AccessorData::serialize() const
     }
     return result;
 }
+
+
+// SparseAccessorData
+SparseAccessorData::SparseAccessorData(const BufferViewData &idxBufferView,
+                                       const BufferViewData &valBufferView,
+                                       GLType idxType, GLType valType)
+    : Holdable(),
+      idxBufferView(idxBufferView.ix),
+      valBufferView(valBufferView.ix),
+      idxType(std::move(idxType)),
+      valType(std::move(valType)),
+      idxByteOffset(0),
+      valByteOffset(0),
+      count(0),
+      sparseCount(0)
+{
+}
+
+SparseAccessorData::SparseAccessorData(GLType idxType, GLType valType)
+    : Holdable(),
+      idxBufferView(-1),
+      valBufferView(-1),
+      idxType(std::move(idxType)),
+      valType(std::move(valType)),
+      idxByteOffset(0),
+      valByteOffset(0),
+      count(0),
+      sparseCount(0)
+{
+}
+
+json SparseAccessorData::serialize() const
+{
+    json result {
+        { "componentType", valType.componentType.glType },
+        { "type", valType.dataType },
+        { "count", count },
+        { "sparse", { { "count", sparseCount } } }
+    };
+    if (idxBufferView >= 0) {
+        result["sparse"]["indices"]["bufferView"] = idxBufferView;
+        result["sparse"]["indices"]["byteOffset"] = idxByteOffset;
+        result["sparse"]["indices"]["componentType"] = idxType.componentType.glType;
+    }
+    if (valBufferView >= 0) {
+        result["sparse"]["values"]["bufferView"] = valBufferView;
+        result["sparse"]["values"]["byteOffset"] = valByteOffset;
+        result["sparse"]["values"]["componentType"] = valType.componentType.glType;
+    }
+    if (!min.empty()) {
+        result["min"] = min;
+    }
+    if (!max.empty()) {
+        result["max"] = max;
+    }
+    return result;
+}

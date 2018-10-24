@@ -132,10 +132,36 @@ struct GLTFData
         BufferViewData &bufferView, const GLType &type, const std::vector<T> &source)
     {
         auto accessor = accessors.hold(new AccessorData(bufferView, type));
+        accessor->ix += sparseAccessors.ptrs.size();
         accessor->appendAsBinaryArray(source, *binary);
         bufferView.byteLength = accessor->byteLength();
         return accessor;
     }
+
+    template<class T>
+    std::shared_ptr<SparseAccessorData> AddSparseAccessorWithView(
+        BufferViewData &idxBufferView, BufferViewData &valBufferView,
+        const GLType &idxType, const GLType &valType, const std::vector<T> &source)
+    {
+        auto accessor = sparseAccessors.hold(new SparseAccessorData(idxBufferView, valBufferView, idxType, valType));
+        accessor->ix += accessors.ptrs.size();
+
+        accessor->appendAsBinaryArray(source, *binary);
+        idxBufferView.byteLength = accessor->idxByteLength();
+        valBufferView.byteLength = accessor->valByteLength();
+
+        // These two buffers were allocated at the same time, so they will have
+        // the same calculated byte offset. Update the 2nd (valBufferView) to
+        // start at the end of the 1st (plus padding if needed)
+        unsigned int offset = idxBufferView.byteOffset + idxBufferView.byteLength;
+        if ((offset % 4) > 0) {
+            offset += (4 - (offset % 4));
+        }
+        *const_cast<unsigned int*>(&valBufferView.byteOffset) = offset;
+
+        return accessor;
+    }
+
 
     template<class T>
     std::shared_ptr<AccessorData> AddAccessorAndView(
@@ -159,6 +185,7 @@ struct GLTFData
             primitive.AddDracoAttrib(attrDef, attribArr);
 
             accessor = accessors.hold(new AccessorData(attrDef.glType));
+            accessor->ix += sparseAccessors.ptrs.size();
             accessor->count = attribArr.size();
         } else {
             auto bufferView = GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER);
@@ -180,12 +207,63 @@ struct GLTFData
         }
     }
 
+    template<class T>
+    void appendSerializeHolder(json &glTFJson, std::string key, const Holder<T> holder)
+    {
+        if (glTFJson[key].empty()) {
+            serializeHolder(glTFJson, key, holder);
+        } else {
+            if (!holder.ptrs.empty()) {
+                for (const auto &ptr : holder.ptrs) {
+                    glTFJson[key].push_back(ptr->serialize());
+                }
+            }
+        }
+    }
+
+    template<class T1, class T2>
+    void serializeHolders(json &glTFJson, std::string key, const Holder<T1> holder1,
+                                                           const Holder<T2> holder2)
+    {
+        auto itr1 = holder1.ptrs.begin();
+        auto itr2 = holder2.ptrs.begin();
+
+        std::vector<json> bits;
+        while (itr1 != holder1.ptrs.end() || itr2 != holder2.ptrs.end())
+        {
+            if (itr1 == holder1.ptrs.end())
+            {
+                bits.push_back((*itr2)->serialize());
+                ++itr2;
+            }
+            else if (itr2 == holder2.ptrs.end())
+            {
+                bits.push_back((*itr1)->serialize());
+                ++itr1;
+            }
+            else if ((*itr1)->ix < (*itr2)->ix)
+            {
+                bits.push_back((*itr1)->serialize());
+                ++itr1;
+            }
+            else
+            {
+                bits.push_back((*itr2)->serialize());
+                ++itr2;
+            }
+        }
+
+        glTFJson[key] = bits;
+    }
+
     void serializeHolders(json &glTFJson)
     {
       serializeHolder(glTFJson, "buffers", buffers);
       serializeHolder(glTFJson, "bufferViews", bufferViews);
       serializeHolder(glTFJson, "scenes", scenes);
-      serializeHolder(glTFJson, "accessors", accessors);
+      serializeHolders(glTFJson, "accessors", accessors, sparseAccessors);
+      //serializeHolder(glTFJson, "accessors", accessors);
+      //appendSerializeHolder(glTFJson, "accessors", sparseAccessors);
       serializeHolder(glTFJson, "images", images);
       serializeHolder(glTFJson, "samplers", samplers);
       serializeHolder(glTFJson, "textures", textures);
@@ -208,6 +286,7 @@ struct GLTFData
     Holder<BufferData>     buffers;
     Holder<BufferViewData> bufferViews;
     Holder<AccessorData>   accessors;
+    Holder<SparseAccessorData> sparseAccessors;
     Holder<ImageData>      images;
     Holder<SamplerData>    samplers;
     Holder<TextureData>    textures;
@@ -847,6 +926,7 @@ ModelData *Raw2Gltf(
                 }
 
                 AccessorData &indexes = *gltf->accessors.hold(new AccessorData(useLongIndices ? GLT_UINT : GLT_USHORT));
+                indexes.ix += gltf->sparseAccessors.ptrs.size();
                 indexes.count = 3 * triangleCount;
                 primitive.reset(new PrimitiveData(indexes, mData, dracoMesh));
             } else {
@@ -924,24 +1004,30 @@ ModelData *Raw2Gltf(
                             tangents.push_back(blendVertex.tangent);
                         }
                     }
-                    std::shared_ptr<AccessorData> pAcc = gltf->AddAccessorWithView(
+                    //std::shared_ptr<AccessorData> pAcc = gltf->AddAccessorWithView(
+                    //    *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
+                    //    GLT_VEC3F, positions);
+                    std::shared_ptr<SparseAccessorData> pAcc = gltf->AddSparseAccessorWithView(
+                        *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ELEMENT_ARRAY_BUFFER),
                         *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
-                        GLT_VEC3F, positions);
+                        GLT_USHORT, GLT_VEC3F, positions);
                     pAcc->min = toStdVec(shapeBounds.min);
                     pAcc->max = toStdVec(shapeBounds.max);
 
-                    std::shared_ptr<AccessorData> nAcc;
+                    std::shared_ptr<SparseAccessorData> nAcc;
                     if (!normals.empty()) {
-                        nAcc = gltf->AddAccessorWithView(
+                        nAcc = gltf->AddSparseAccessorWithView(
+                            *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ELEMENT_ARRAY_BUFFER),
                             *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
-                            GLT_VEC3F, normals);
+                            GLT_USHORT, GLT_VEC3F, normals);
                     }
 
-                    std::shared_ptr<AccessorData> tAcc;
+                    std::shared_ptr<SparseAccessorData> tAcc;
                     if (!tangents.empty()) {
-                        nAcc = gltf->AddAccessorWithView(
+                        nAcc = gltf->AddSparseAccessorWithView(
+                            *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ELEMENT_ARRAY_BUFFER),
                             *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
-                            GLT_VEC4F, tangents);
+                            GLT_USHORT, GLT_VEC4F, tangents);
                     }
 
                     primitive->AddTarget(pAcc.get(), nAcc.get(), tAcc.get(), channel.name);
