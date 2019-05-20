@@ -495,6 +495,7 @@ public:
         }
         
         if (rootIndex == -1) {
+            rootIndex = 0;
             std::cerr << "Error: Unable to find a root joint. Arbitrarily using the first joint as the skin root." << std::endl;
         }
     }
