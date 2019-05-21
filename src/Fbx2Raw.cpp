@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <map>
 #include <set>
+#include <stack>
 #include <string>
 #include <fstream>
 #include <cstdint>
@@ -460,19 +461,42 @@ public:
             }
         }
 
+        // Return true if test_node is in the hierarchy below (and including) n
+        auto contains_node = [](FbxNode* n, FbxNode* test_node) -> bool {
+            std::stack<FbxNode*> nodes;
+            nodes.push(n);
+
+            while (nodes.size()) {
+                FbxNode* curr = nodes.top();
+                nodes.pop();
+
+                if (curr == test_node) {
+                    return true;
+                } else {
+                    for (int i=0; i<curr->GetChildCount(); i++) {
+                        nodes.push(curr->GetChild(i));
+                    }
+                }
+            }
+            return false;
+        };
+
         rootIndex = -1;
         for (size_t i = 0; i < jointNodes.size() && rootIndex == -1; i++) {
             rootIndex = (int) i;
-            FbxNode *parent = jointNodes[i]->GetParent();
-            if (parent == nullptr) {
-                break;
-            }
             for (size_t j = 0; j < jointNodes.size(); j++) {
-                if (jointNodes[j] == parent) {
+                // Search recursively, including this node, for jointNodes[j]
+                if (!contains_node(jointNodes[i], jointNodes[j])) {
+                    // Failed to find a joint. Try again with the next
                     rootIndex = -1;
                     break;
                 }
             }
+        }
+        
+        if (rootIndex == -1) {
+            rootIndex = 0;
+            std::cerr << "Error: Unable to find a root joint. Arbitrarily using the first joint as the skin root." << std::endl;
         }
     }
 
