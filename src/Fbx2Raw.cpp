@@ -398,7 +398,6 @@ public:
     static const int MAX_WEIGHTS = 4;
 
     FbxSkinningAccess(const FbxMesh *pMesh, FbxScene *pScene, FbxNode *pNode)
-        : rootIndex(-1)
     {
         for (int deformerIndex = 0; deformerIndex < pMesh->GetDeformerCount(); deformerIndex++) {
             FbxSkin *skin = reinterpret_cast< FbxSkin * >( pMesh->GetDeformer(deformerIndex, FbxDeformer::eSkin));
@@ -481,22 +480,27 @@ public:
             return false;
         };
 
-        rootIndex = -1;
-        for (size_t i = 0; i < jointNodes.size() && rootIndex == -1; i++) {
-            rootIndex = (int) i;
-            for (size_t j = 0; j < jointNodes.size(); j++) {
-                // Search recursively, including this node, for jointNodes[j]
-                if (!contains_node(jointNodes[i], jointNodes[j])) {
-                    // Failed to find a joint. Try again with the next
-                    rootIndex = -1;
-                    break;
-                }
+        // Arbitrarily start the search at the first joint (doesn't really matter)
+        FbxNode* rootNode = jointNodes.front();
+
+        while (rootNode) {
+            // Stop the search if this node contain all the joints in its sub-hierarchy
+            if (std::all_of(jointNodes.begin(), jointNodes.end(),
+                        [&](FbxNode* node) {
+                            return contains_node(rootNode, node);
+                        })) {
+                break;
             }
+
+            // Otherwise move up one level and try again
+            rootNode = rootNode->GetParent();
         }
-        
-        if (rootIndex == -1) {
-            rootIndex = 0;
-            std::cerr << "Error: Unable to find a root joint. Arbitrarily using the first joint as the skin root." << std::endl;
+
+        if (rootNode) {
+            rootNodeId = rootNode->GetUniqueID();
+        } else {
+            rootNodeId = jointIds.front();
+            std::cerr << "Error: Unable to find a root node that contains all the joints below it. Arbitrarily using the first joint as the skin root." << std::endl;
         }
     }
 
@@ -532,8 +536,7 @@ public:
 
     const long GetRootNode() const
     {
-        assert(rootIndex != -1);
-        return jointIds[rootIndex];
+        return rootNodeId;
     }
 
     const FbxAMatrix &GetInverseBindMatrix(const int jointIndex) const
@@ -554,7 +557,7 @@ public:
     }
 
 private:
-    int                      rootIndex;
+    long                     rootNodeId;
     std::vector<long>        jointIds;
     std::vector<FbxNode *>   jointNodes;
     std::vector<FbxMatrix>   jointSkinningTransforms;
