@@ -499,8 +499,13 @@ public:
         if (rootNode) {
             rootNodeId = rootNode->GetUniqueID();
         } else {
-            rootNodeId = jointIds.front();
-            std::cerr << "Error: Unable to find a root node that contains all the joints below it. Arbitrarily using the first joint as the skin root." << std::endl;
+            if (jointIds.empty()) {
+                rootNodeId = -1;
+                std::cerr << "Error: Skinning cluster found with no joints!" << std::endl;
+            } else {
+                rootNodeId = jointIds.front();
+                std::cerr << "Error: Unable to find a root node that contains all the joints below it. Arbitrarily using the first joint as the skin root." << std::endl;
+            }
         }
     }
 
@@ -536,6 +541,7 @@ public:
 
     const long GetRootNode() const
     {
+        assert(rootNodeId != -1);
         return rootNodeId;
     }
 
