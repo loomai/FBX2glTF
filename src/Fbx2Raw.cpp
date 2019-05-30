@@ -480,7 +480,7 @@ public:
             return false;
         };
 
-        if (!jointIds.empty()) {
+        if (!jointNodes.empty()) {
             // Arbitrarily start the search at the first joint (doesn't really matter)
             FbxNode* rootNode = jointNodes.front();
 
