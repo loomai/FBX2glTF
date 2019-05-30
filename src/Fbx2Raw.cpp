@@ -480,32 +480,32 @@ public:
             return false;
         };
 
-        // Arbitrarily start the search at the first joint (doesn't really matter)
-        FbxNode* rootNode = jointNodes.front();
+        if (!jointIds.empty()) {
+            // Arbitrarily start the search at the first joint (doesn't really matter)
+            FbxNode* rootNode = jointNodes.front();
 
-        while (rootNode) {
-            // Stop the search if this node contain all the joints in its sub-hierarchy
-            if (std::all_of(jointNodes.begin(), jointNodes.end(),
-                        [&](FbxNode* node) {
-                            return contains_node(rootNode, node);
-                        })) {
-                break;
+            while (rootNode) {
+                // Stop the search if this node contain all the joints in its sub-hierarchy
+                if (std::all_of(jointNodes.begin(), jointNodes.end(),
+                            [&](FbxNode* node) {
+                                return contains_node(rootNode, node);
+                            })) {
+                    break;
+                }
+
+                // Otherwise move up one level and try again
+                rootNode = rootNode->GetParent();
             }
 
-            // Otherwise move up one level and try again
-            rootNode = rootNode->GetParent();
-        }
-
-        if (rootNode) {
-            rootNodeId = rootNode->GetUniqueID();
-        } else {
-            if (jointIds.empty()) {
-                rootNodeId = -1;
-                std::cerr << "Error: Skinning cluster found with no joints!" << std::endl;
+            if (rootNode) {
+                rootNodeId = rootNode->GetUniqueID();
             } else {
                 rootNodeId = jointIds.front();
                 std::cerr << "Error: Unable to find a root node that contains all the joints below it. Arbitrarily using the first joint as the skin root." << std::endl;
             }
+        } else {
+            rootNodeId = -1;
+            std::cerr << "Error: Skinning cluster found with no joints!" << std::endl;
         }
     }
 
