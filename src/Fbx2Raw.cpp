@@ -1218,13 +1218,70 @@ static void ReadAnimations(RawModel &raw, FbxScene *pScene)
             bool hasScale       = false;
             bool hasMorphs      = false;
 
+            std::cout << "Node " << nodeIndex << "\n";
+
+            FbxTime pStartTime;
+            pStartTime.SetFrame(firstFrameIndex, eMode);
+            FbxAMatrix    lastTransform   = pNode->EvaluateLocalTransform(pStartTime);
+            FbxVector4    lastTranslation = lastTransform.GetT();
+            FbxQuaternion lastRotation    = lastTransform.GetQ();
+            FbxVector4    lastScaling     = computeLocalScale(pNode, pStartTime);
+            
+            float lastRotationAngle = 2.0 * std::acos(lastRotation[3]);
+
             RawChannel channel;
             channel.nodeIndex = raw.GetNodeById(pNode->GetUniqueID());
 
-            for (FbxLongLong frameIndex = firstFrameIndex; frameIndex <= lastFrameIndex; frameIndex++) {
+            channel.translations.push_back(toVec3f(lastTranslation) * scaleFactor);
+            channel.rotations.push_back(toQuatf(lastRotation));
+            channel.scales.push_back(toVec3f(lastScaling));
+            channel.times.push_back(animation.times[firstFrameIndex]);
+
+            const float dt = animation.times[firstFrameIndex+1] - animation.times[firstFrameIndex];
+
+            std::cout << "Base: " << baseTranslation[0] << "; " << baseTranslation[1] << "; " << baseTranslation[2] << "\n";
+
+            FbxVector4 m_scale(1.0, 1.0, 1.0);
+            FbxVector4 m_trans(1.0, 1.0, 1.0);
+            float m_rot = 1.0;
+            FbxVector4 rot_axis(1.0, 1.0, 1.0);
+            {
+                FbxTime pTime, pNextTime;
+                pTime.SetFrame(firstFrameIndex, eMode);
+                pNextTime.SetFrame(firstFrameIndex + 1, eMode);
+                const FbxAMatrix    nextTransform   = pNode->EvaluateLocalTransform(pNextTime);
+                const FbxVector4    nextTranslation = nextTransform.GetT();
+                const FbxQuaternion nextRotation    = nextTransform.GetQ();
+                const FbxVector4    nextScale       = computeLocalScale(pNode, pNextTime);
+
+                const float last_rot_angle = 2.0 * std::acos(lastRotation[3]);
+                const float next_rot_angle = 2.0 * std::acos(nextRotation[3]);
+
+                const float den = std::sqrt(1.0 - lastRotation[3] * lastRotation[3]);
+                if (den < 1.0e-6) {
+                    rot_axis[0] = rot_axis[1] = rot_axis[2] = 1.0;
+                } else {
+                    rot_axis = FbxVector4(lastRotation[0], lastRotation[1], lastRotation[2]) / den;
+                }
+
+                //const float dt = (float)(pNextTime.GetSecondDouble()) - (float)(pTime.GetSecondDouble());
+                
+                for (int i=0; i<3; i++) {
+                    m_scale[i] = nextScale[i] - lastScaling[i];
+                    m_trans[i] = nextTranslation[i] - lastTranslation[i];
+                }
+
+                m_rot = next_rot_angle - last_rot_angle;
+            }
+            std::cout << "trans: " << m_trans[0] << "; " << m_trans[1] << "; " << m_trans[2] << "\n";
+            std::cout << "axis: " << rot_axis[0] << " " << rot_axis[1] << " " << rot_axis[2] << "\n";
+
+            FbxLongLong lastFrame = firstFrameIndex;
+
+            for (FbxLongLong frameIndex = firstFrameIndex + 1; frameIndex <= lastFrameIndex; frameIndex++) {
                 FbxTime pTime;
                 pTime.SetFrame(frameIndex, eMode);
-
+                
                 const FbxAMatrix    localTransform   = pNode->EvaluateLocalTransform(pTime);
                 const FbxVector4    localTranslation = localTransform.GetT();
                 const FbxQuaternion localRotation    = localTransform.GetQ();
@@ -1244,9 +1301,91 @@ static void ReadAnimations(RawModel &raw, FbxScene *pScene)
                     fabs(localScale[1] - baseScaling[1]) > epsilon ||
                     fabs(localScale[2] - baseScaling[2]) > epsilon);
 
-                channel.translations.push_back(toVec3f(localTranslation) * scaleFactor);
-                channel.rotations.push_back(toQuatf(localRotation));
-                channel.scales.push_back(toVec3f(localScale));
+                FbxVector4 estTranslation = lastTranslation + m_trans * (frameIndex - lastFrame);
+                FbxVector4 estScale       = lastScaling + m_scale * (frameIndex - lastFrame);
+
+                const float localRotationAngle = 2.0 * std::acos(localRotation[3]);
+
+                FbxVector4 local_rot_axis = FbxVector4(1.0, 1.0, 1.0);
+                float scale_den = std::sqrt(1.0 - localRotation[3] * localRotation[3]);
+                if (scale_den > 1.0e-6) {
+                    local_rot_axis = FbxVector4(localRotation[0], localRotation[1], localRotation[2]) / scale_den;
+                }
+
+                float estRotationAngle = lastRotationAngle + m_rot * (frameIndex - lastFrame);
+
+                std::cout << "\tlocal axis: " << local_rot_axis[0] << " " << local_rot_axis[1] << " " << local_rot_axis[2] << "\n";
+
+                std::cout << "Dt: " << (animation.times[frameIndex] - animation.times[frameIndex-1]) << "\n";
+                std::cout << localTranslation[0] << " " << localTranslation[1] << " " << localTranslation[2] << "\n";
+                std::cout << estTranslation[0] << " " << estTranslation[1] << " " << estTranslation[2] << "\n";
+                std::cout << "Angles: " << localRotationAngle << " " << estRotationAngle << "\n\n";
+
+                bool hasLinearTranslation = (
+                    fabs(localTranslation[0] - estTranslation[0]) < 0.01 &&
+                    fabs(localTranslation[1] - estTranslation[1]) < 0.01 &&
+                    fabs(localTranslation[2] - estTranslation[2]) < 0.01 );
+                bool hasLinearScale = (
+                    fabs(localScale[0] - estScale[0]) < 0.01 &&
+                    fabs(localScale[1] - estScale[1]) < 0.01 &&
+                    fabs(localScale[2] - estScale[2]) < 0.01 );
+                bool hasLinearRotation = (
+                        (local_rot_axis - rot_axis).Length() < 0.01 &&
+                        fabs(localRotationAngle - estRotationAngle) < 0.01);
+
+                std::cout << "\t" << hasLinearTranslation << "; " << hasLinearScale << "; " << hasLinearRotation << "\n";
+
+                if (!(hasLinearTranslation && hasLinearRotation && hasLinearScale) || frameIndex == lastFrameIndex) {
+                    std::cout << "\tKeeping frame at " << (frameIndex-1) << "\n";
+                    FbxTime pPrevTime;
+                    pPrevTime.SetFrame(frameIndex - 1, eMode);
+
+                    const FbxAMatrix    prevTransform   = pNode->EvaluateLocalTransform(pPrevTime);
+                    const FbxVector4    prevTranslation = prevTransform.GetT();
+                    const FbxQuaternion prevRotation    = prevTransform.GetQ();
+                    const FbxVector4    prevScale       = computeLocalScale(pNode, pPrevTime);
+
+                    channel.translations.push_back(toVec3f(prevTranslation) * scaleFactor);
+                    channel.rotations.push_back(toQuatf(prevRotation));
+                    channel.scales.push_back(toVec3f(prevScale));
+                    channel.times.push_back(float(pPrevTime.GetSecondDouble()));
+
+                    lastTranslation = localTranslation;
+                    lastRotation    = localRotation;
+                    lastScaling     = localScale;
+
+                    lastRotationAngle = 2.0 * std::acos(localRotation[3]);
+                    
+                    float den = std::sqrt(1.0 - localRotation[3] * localRotation[3]);
+                    if (den < 1.0e-6) {
+                        rot_axis[0] = rot_axis[1] = rot_axis[2] = 1.0;
+                    } else {
+                        rot_axis = FbxVector4(localRotation[0], localRotation[1], localRotation[2]) / den;
+                    }
+
+                    lastFrame = frameIndex;
+
+                    if (frameIndex < lastFrameIndex) {
+                        FbxTime pNextTime;
+                        pNextTime.SetFrame(frameIndex+1, eMode);
+                        const FbxAMatrix    nextTransform   = pNode->EvaluateLocalTransform(pNextTime);
+                        const FbxVector4    nextTranslation = nextTransform.GetT();
+                        const FbxQuaternion nextRotation    = nextTransform.GetQ();
+                        const FbxVector4    nextScale       = computeLocalScale(pNode, pNextTime);
+
+                        //const float dt = (float)(pNextTime.GetSecondDouble()) - (float)(pTime.GetSecondDouble());
+
+                        // Recompute slopes
+                        for (int i=0; i<3; i++) {
+                            m_scale[i] = (nextScale[i] - localScale[i]);
+                            m_trans[i] = (nextTranslation[i] - localTranslation[i]);
+                        }
+
+                        m_rot = 2.0 * std::acos(nextRotation[3]) - lastRotationAngle;
+
+                        std::cout << "trans: " << m_trans[0] << "; " << m_trans[1] << "; " << m_trans[2] << "\n";
+                    }
+                }
             }
 
             std::vector<FbxAnimCurve *> shapeAnimCurves;

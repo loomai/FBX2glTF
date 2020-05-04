@@ -346,6 +346,8 @@ struct RawChannel
     std::vector<Quatf> rotations;
     std::vector<Vec3f> scales;
     std::vector<float> weights;
+
+    std::vector<float> times;
 };
 
 struct RawAnimation

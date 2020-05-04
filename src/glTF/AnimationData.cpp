@@ -21,12 +21,12 @@ AnimationData::AnimationData(std::string name, const AccessorData &timeAccessor)
 
 // assumption: 1-to-1 relationship between channels and samplers; this is a simplification on what
 // glTF can express, but it means we can rely on samplerIx == channelIx throughout an animation
-void AnimationData::AddNodeChannel(const NodeData &node, const AccessorData &accessor, std::string path)
+void AnimationData::AddNodeChannel(const NodeData &node, const AccessorData& time_acc, const AccessorData &accessor, std::string path)
 {
     assert(channels.size() == samplers.size());
     uint32_t ix = channels.size();
     channels.emplace_back(channel_t(ix, node, std::move(path)));
-    samplers.emplace_back(sampler_t(timeAccessor, accessor.ix));
+    samplers.emplace_back(sampler_t(time_acc.ix, accessor.ix));
 }
 
 json AnimationData::serialize() const

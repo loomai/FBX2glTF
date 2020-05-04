@@ -446,19 +446,48 @@ ModelData *Raw2Gltf(
                         channelIx, node.name.c_str(), channel.translations.size(), channel.rotations.size(),
                         channel.scales.size(), channel.weights.size());
                 }
-
+                
+                std::shared_ptr<AccessorData> t_accessor;
+                
                 NodeData &nDat = require(nodesById, node.id);
                 if (!channel.translations.empty()) {
-                    aDat.AddNodeChannel(nDat, *gltf->AddAccessorAndView(buffer, GLT_VEC3F, channel.translations), "translation");
+                    if (channel.translations.size() == animation.times.size()) {
+                        aDat.AddNodeChannel(nDat, *accessor, *gltf->AddAccessorAndView(buffer, GLT_VEC3F, channel.translations), "translation");
+                    } else {
+                        if (!t_accessor) {
+                            t_accessor = gltf->AddAccessorAndView(buffer, GLT_FLOAT, channel.times);
+                            t_accessor->min = { *std::min_element(std::begin(channel.times), std::end(channel.times)) };
+                            t_accessor->max = { *std::max_element(std::begin(channel.times), std::end(channel.times)) };
+                        }
+                        aDat.AddNodeChannel(nDat, *t_accessor, *gltf->AddAccessorAndView(buffer, GLT_VEC3F, channel.translations), "translation");
+                    }
                 }
                 if (!channel.rotations.empty()) {
-                    aDat.AddNodeChannel(nDat, *gltf->AddAccessorAndView(buffer, GLT_QUATF, channel.rotations), "rotation");
+                    if (channel.rotations.size() == animation.times.size()) {
+                        aDat.AddNodeChannel(nDat, *accessor, *gltf->AddAccessorAndView(buffer, GLT_QUATF, channel.rotations), "rotation");
+                    } else {
+                        if (!t_accessor) {
+                            t_accessor = gltf->AddAccessorAndView(buffer, GLT_FLOAT, channel.times);
+                            t_accessor->min = { *std::min_element(std::begin(channel.times), std::end(channel.times)) };
+                            t_accessor->max = { *std::max_element(std::begin(channel.times), std::end(channel.times)) };
+                        }
+                        aDat.AddNodeChannel(nDat, *t_accessor, *gltf->AddAccessorAndView(buffer, GLT_QUATF, channel.rotations), "rotation");
+                    }
                 }
                 if (!channel.scales.empty()) {
-                    aDat.AddNodeChannel(nDat, *gltf->AddAccessorAndView(buffer, GLT_VEC3F, channel.scales), "scale");
+                    if (channel.rotations.size() == animation.times.size()) {
+                        aDat.AddNodeChannel(nDat, *accessor, *gltf->AddAccessorAndView(buffer, GLT_VEC3F, channel.scales), "scale");
+                    } else {
+                        if (!t_accessor) {
+                            t_accessor = gltf->AddAccessorAndView(buffer, GLT_FLOAT, channel.times);
+                            t_accessor->min = { *std::min_element(std::begin(channel.times), std::end(channel.times)) };
+                            t_accessor->max = { *std::max_element(std::begin(channel.times), std::end(channel.times)) };
+                        }
+                        aDat.AddNodeChannel(nDat, *t_accessor, *gltf->AddAccessorAndView(buffer, GLT_VEC3F, channel.scales), "scale");
+                    }
                 }
                 if (!channel.weights.empty()) {
-                    aDat.AddNodeChannel(nDat, *gltf->AddAccessorAndView(buffer, {CT_FLOAT, 1, "SCALAR"}, channel.weights), "weights");
+                    aDat.AddNodeChannel(nDat, *accessor, *gltf->AddAccessorAndView(buffer, {CT_FLOAT, 1, "SCALAR"}, channel.weights), "weights");
                 }
             }
         }
